@@ -1,0 +1,191 @@
+https://github.com/cprakash2118/DO328v3.1---Red-Hat-OpenShift-Service-Mesh
+
+POint-01-#
+Product- Red Hat OpenShift 
+1-# Cloud services editions [ROSA, ARO, Dedicated, IBM Cloud]
+2-# Self-managed editions   [RHOKE; RHOCP; RHOPP]  
+
+FYI- 
+1- RHOKE not having default Red Hat OpenShift Service Mesh.
+2- RHOCP & RHOPP includes Red Hat OpenShift Service Mesh.
+
+
+###  Kubernetes Vs OpenShift
+
+Lets discussed quickly w.r.t k8s (kubernetes).
+https://kubernetes.io/
+https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+ 
+  layer-06   End user application [Like banking application or BFSI level deployment]
+  layer-05   Add-on kubernetes services [Like - network/authentication/LB/monitoring/etc]
+  layer-04   Certified kubernetes orchestration tool (k8sV1.32)
+             [kubelet,kube-apiserver,kube-controller-manager,kube-scheduler,etcd]   
+			 kubelet only systemd process here, rest all are deployed as container.
+  layer-03   Install- Container Run Time [containerd,crio,docker,Miratis Container Runtime etc]
+              crio also systemd process here- systemctl status crio/kubelet
+  layer-02   Install- Operating System (OS) - RHEL/SUSE - Enterprise Linux.
+  layer-01   hardware/Cloud/Virtualization 
+
+
+Lets discussed quickly w.r.t OpenShift.
+  layer-07   End user application [Like banking application or BFSI level deployment]
+  layer-06   Red Hat openshift Platform Plus [AI,ACM,ACS,Quay,3sacleAPI,kubeVirt etc]
+  layer-05   Red Hat OpenShift Container Platform (RHOCP - Red Hat OpenShift Container Platform)
+  layer-04   Red Hat openshift Kubernetes Engine (RHOKE - Red Hat OpenShift Kubernetes Engine)
+  layer-04   Certified kubernetes orchestration tool (k8sV1.32)
+  layer-03   Install- Container Run Time (crio)
+  layer-02   Install- Red Hat Enterprise Linux CoreOS 
+  layer-01   hardware/Cloud/Virtualization 
+  
+
+POint-02-#
+Classroom Example:-
+1-# Users Details:-
+2-# Network/Domain 
+3-# Servers/VMs
+  
+1-# Users Details:-
+   - Login to Servers/VMs.
+     student/student (sudo access)
+	 root/redhat 
+	 
+   - Login to OCP cluster.
+     admin/redhatocp (cluster-admin access)
+	 developer/developer (Basic access w.r.t namespace)
+	 
+   - Required items for OCP cluster login.
+     API URL - https://api.ocp4.example.com:6443 
+	 FYI     - https://api.clusterName.baseDomain:6443 
+	 
+	 Web URL - https://console-openshift-console.apps.ocp4.example.com 
+     FYI     - https://appName-nsName.apps.clusterName.baseDomain
+	 
+	 clusterName - ocp4 
+	 baseDomain  - example.com 
+	 
+	 $ oc login -u admin -p redhatocp https://api.ocp4.example.com:6443 
+	 $ nslookup api.ocp4.example.com
+	    192.168.50.254 -> LB 
+	 $ ssh utility 
+	 $ lsof -i:6443 
+	 
+	 
+2-# Network/Domain Detail:-
+    Domain Name                 Network Name               Network Range 
+	lab.example.com            student Network            172.25.250.0/24 
+    ocp4.example.com           cluster network            192.168.50.0/24 
+    example.com                classroom network          172.25.252.0/24 
+
+3-# Servers/VMs:-
+    workstation.lab.example.com    [Jump server]
+    bastion.lab.example.com        [COnnect workstation to Classroom network]
+    utility.lab.example.com        [DNS, LB, DHCP, PXE, Apache, NFS-server -> StorageClass, etc other services]
+	master01.ocp4.example.com      [SIngle node master]
+	FYI- 
+	 3 master node; N worker nodes [bootstrap + 3 master node / singlre master node]
+	 
+	registry.ocp4.example.com      [Images]
+	classroom.example.com          [Proxy to connect to internet]
+	
+Note: LAB connected to internet.
+
+-------------------------------------------
+POint-03-#	
+- Red Hat OpenShift Service Mesh (Deafult with RHOCP) - Add-on service w.r.t Red Hat OpenShift.
+- OpenShift Service-Mesh 2.1 vs 3.1 
+
+Componets:-           Service-Mesh V2.1                       Service-Mesh V3.1 
+1- Istio              ~1.10-1.2                               ~1.8+ (Major jump)
+2- Envoy               Older LTS (Low perfomance issue)        Newer (Performance optimized)                               
+3- Jaeger               Old                                    Moving to open telemetry part                                     
+4- Kiali              v1.x                                     v2.x (new UI + insight)
+
+Service-MeshV2.1 based on:-
+- Heavy sidecar-based model 
+- Every pod -> Envoy injected 
+- CP (Control Plane - Istiod) managed all 
+
+Problem Statement:-
+- High resource usages (CPU/Memory)
+- Complex debugging 
+- Slow scaling in larger env (Big CLuster).
+
+
+#Unit-1-# Introducing OpenShift Service Mesh.
+- Service Mesh conceps
+- OpenShift Mesh Architecture 
+- Service Mesh showroom application.
+
+Questions:-
+- Why did service mesh become necessary in modern microservices platfrom ?
+- Why OpenShift Service Mesh required w.r.t Enterprise env 
+
+Problems:-
+- Multiple services talking to each other.
+- Hard to trace requests end-to-end 
+- security b/w services is inconsistent 
+- Retry/timeouts/Circuit breaking logic get duplicated in code.
+- Monitoring part 
+- Ownership part (App/Platform teams).
+
+Solution:-
+Service Mesh - OpenShift Service Mesh addresses these corss-cutting probelms in a platfrom-driven way.
+### Building Resilient Microservices with Istio and Red Hat OpenShift Service Mesh:-
+- Resilient Microservices:-
+  - Resilient means service continue to operate reliably even when failure happen.
+    
+	Some failure list:-
+	- One pod crashes 
+	- Downstream service becomes slow.
+	- Network latency 
+	- Certifcate issue 
+	- Traffic suddenly spikes 
+	  etc 
+	  
+	Resilient means that platfrom can help with:-
+	- retries 
+	- timeouts 
+	- Failover behavior 
+	- traffic control 
+	- LB 
+	
+  - Istio:-
+     Istio is the service mesh technology foundation and it provides.
+	 - Traffic Mgmt 
+	 - Security 
+	 - Policy control 
+	 - Observability 
+	 
+   - Red Hat OpenShift Service Mesh (Istio + Envoy + Jaeger + Kiali )
+   
+# Red Hat OpenShift Service Mesh:-
+- Service Mesh is an infrastructure layer that manages service-to-service communication in a microservices env.
+
+# Why service mesh is needed in Microservices?
+Monilithic apps -> Many internal calls happen inside one process.
+Microservices   -> One user request my travel through:-
+  - API gateway 
+  - Frontend 
+  - Product service 
+  - cart service 
+  - payment service 
+  - recommendation service 
+
+ Now think this way :-
+ - Traffic complexity 
+ - Security complexity
+ - Observability complexity
+ - Policy consistency 
+
+# Core Service mesh Concepts:-
+- Data Plane  Where actual application traffic flows.
+- Control Plane  - Control plane like a brain which define policies, controls traffic behavior, manage certificate/identity 
+
+  RHOCP only 
+   - Socket     - bare metal  [ 1,2 socket] - 64/128 
+   - core (CPU) - Cloud editions - 
+   
+   
+   
+	

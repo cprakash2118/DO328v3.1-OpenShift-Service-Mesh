@@ -1,0 +1,148 @@
+https://github.com/cprakash2118/DO328v3.1-OpenShift-Service-Mesh
+
+Product - Red Hat OpenShift (OpenShift Service Mesh) - SKU (RHOCP)
+
+POint-01-# OpenShift Service Mesh Architecture.
+- OpenShift service mesh (Istio based Project) is a layer on top of OpenShift.
+  1-) It controls how microservices communicate with each other (Performance/security etc ).
+  2-) Without changing application code.
+  
+  FYI- Core idea for OpenShift service mesh.
+  Move networking logic OUT of application and INTO infrastructure (mesh).
+
+- Core components:-
+  1-) Istio -> Core service mesh engine.
+  2-) Envoy (sidecar) -> Data Plane proxy 
+  3-) Kiali -> Visualization UI 
+  4-) OpenShift -> Platform integration
+  
+
+POint-02-# Without Service Mesh (Traditional microservices).
+Problems:-
+ - Service-to-service communication handled by "application code"
+ - Security (TLS) -> Manual 
+ - Retry logic -> custom coding (Again application code level involment)
+ - Observability -> Very difficult 
+ - Traffic routing -> hard 
+ 
+ Leads to situation:-
+ - Complex code 
+ - hard to scale 
+ - difficult to debugging 
+ 
+
+Solution:- With service mesh
+- All these are handled "Outside application".
+       Features                   What service mesh privides.
+  1-) Security                     mTLS automatically 
+  2-) Traffice routing             Canary,A/B etc 
+  3-) Observability                Metrics, logs, traces 
+  4-) Resilience                   Retry, circuit breaker etc 
+  
+
+
+POint-03-# Control Plane and Data Plane Architecture
+- Control Plane (For your reference - Brain)
+- Data Plane (Traffic handler)
+
+- Control Plane
+  - WHat it does?
+    Manages and configure the mesh.
+  
+  - Major responsibilities as:
+	1-) Service Discovery.
+      - Knows all services in cluster
+	  - Maps services -> endpoints 
+	  Example:-
+	   Service A -> 3 PODS (deployment) + svc (POD_IP:POrt)
+	   Service B -> 2 PODS (deployment) + svc (POD_IP:POrt)
+	   
+	2-) COnfiguration Management:-
+	  - HIgh level rules-
+	    - VirtualService (oc get vs ; oc get gw)
+		- DestinationRule (routing rules)
+		
+		Converts into Envoy config.
+	
+	3-) Security (mTLS)
+       - Issues certificate 
+       - Enables encryption between serivces (microservices).
+
+    4-) COnfiguration push 
+       - Sends config to Envoy proxies dynamically 
+
+    NOte:-
+     - COntrol plane NEVER handles traffic.
+     - Only configure 
+	 
+- Data Plane (Envoy Proxy - Traffic handler)
+  WHat is data plane?
+  - sidecar proxy attached to every POD.
+  
+  Traffic Flow:-
+  User -> Service A -> Service B 
+  
+  User -> Envoy(A) -> Envoy (B) -> App (B).
+  
+ - Capabilities:-
+   1-) Load Balancer - Intelligent routing 
+   2-) Security - mTLS 
+   3-) Observability - Metrics, Tracing 
+   4-) Resilience - Retry, CB, Fault injection 
+   
+   Note: 
+    - ALl traffic goes though envoy 
+	- Apps do not talk directly 
+	
+##### COntrol Plane + Data Plane Interaction:-
+ - Developers defines.
+    - VirtualService (vs - oc get vs)
+	- DestinationRule (dr - oc get dr)
+	
+ - Control Plane 
+    - Read config 
+	- COnverts to envoy config 
+	
+ - Control plane pushes config -> Envoy
+ - Envoy applies rules dynamically.
+ 
+ Note:- 
+  - NO downtime required 
+  - Real-time updates.
+  
+  
+POint-04-# Istio Operartor & CRDs.
+  - Key Resources.
+   1- Istio - Define mesh instance 
+   2- IstioRevision - Support control planes 
+      Why? - Zero downtime upgrades.
+	  Example:-
+	   Old -> v1 
+	   New -> V2 
+	   Gradually migate workloads (CR)
+   
+   3- IstioRevisionTag - Alias for revisions 
+      Production -> v2 
+      
+      Why this required ? - Easy switch 
+
+   4- IstioCNI - Handles networking withour init container 
+   
+      Default CNI w.r.t OCP (OVNKubernetes OCPv412 >= ; before it was OpenShiftSDN).
+      FYI- DeploymentCOnfig & ReplicationController - depricated.
+    
+	
+   Key integrations:-
+    1-) Monitoring - Prometheus, Grafana 
+	2-) Tracing - OpenTelemetry, tempo 
+	3-) Security - Cert Manage (TLS)
+	4-) Deployment - Argo Rollouts (canary)
+	
+	
+      	  
+ 
+
+
+
+
+
