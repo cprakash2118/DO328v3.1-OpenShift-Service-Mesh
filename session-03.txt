@@ -1,0 +1,133 @@
+#- Service Mesh Showroom Application:-
+
+point-01-# Bookinfo Application deployment
+
+- Bookinfo is not just demo application, it is controlled microservice deployment.
+- Bookinfo help us to understand:-
+  - Traffic routing 
+  - Observability 
+  - Security Behaviour 
+  All these without changing application code.
+  
+  - It also states that each microservice is deployed with an "Envoy sidecar", which gives the mesh the hooks needed for external control.
+  
+Bookinfo like a small online bookstore page (application).
+- Once user access this Bookinfo application (When a user opens the page, they only see one webpage only).
+- But in the backend, that page is build by multiple serivce working together.
+Example:-
+  Services:-
+  Productpage -> Main frontend page
+  details -> book metadata 
+  review  -> User reviews 
+  ratings -> Starts for ratings
+  
+  FYI
+  - we will discuss/explain that these service are written in different languages and collaborate to render the final page.
+  
+  - Review service having multiple version to be deployed (Canary routing).
+  
+  
+POint-02-# Why Red Hat uses Bookinfo for Service mesh [OSSM point of view how Bookinfo deployed].
+- Because a service mesh is useful only when there is service-to-service communication complexity.
+- Bookinfo gives exactly that:-
+
+Why this application is perfect:-
+1-# Multiple Services:-
+    Once request touches several services. This way you can see complete traffic (East-west traffice) see clearly.
+	
+2-# Multiple Languages:- 
+- Python, Ruby, Java, NodeJS are used, showing that service mesh works regardless of application's languages/framework. 
+- OSSM provides a uniform layer regardless of application languages.
+
+3-# Multiple Versions of one service:- 
+- review has v1,v2,v3.
+- This is the core reason traffic shifting is easy to demo.
+
+4-# No code changes needed for traffic control.
+- Traffic behavior is changed by OSSM resource like - VirtualService, DestinationRule etc not by modifying application logic.
+- OSSM moves communication logic out of the application and into centralized policy/configuration.
+
+5-# Observability become visible.
+- Once Bookinfo application frontend page used by user/customer then multiple backend calls - kiali and tracing can how tology, traffic flow and dependencies.
+
+6-# Security use cases fit here - Because service to service communication continuosusly, it is easy to show why mTLS matters and how reousres like "PeerAuthentication" can secure these communication b/w multiple microservice.
+
+
+POint-03-# Bookinfo Architecture:-
+ALl services and their jobs.
+ 1- Productpage 
+    - Languages- Python 
+    - This is the user-facing page.
+	- calls details and review
+	- It is entry point from user/brower side.
+	
+ 2- Details:-
+    Languages- Ruby 
+	Return metadata like ISBN, publisher, pages.
+	
+ 3- Reviews:-
+     - Languages - Java 
+	 - Retuns    -  Text 
+	 - Has multiple version 
+	 - calls rating in some version 
+	 
+ 4- Ratings:-
+     - Languages:- Node.js 
+	 - Returns starts/rating data.
+	 
+Important backend point:- Why stars changes:- (Key area to focus).
+- reviews v1 -> does not call ratings -> NO Starts 
+- reviews v2 -> Calls rating -> Black Starts 
+- reviews v3 -> calls rating -> Red Starrs 
+
+Note: SO when we refersh the product page and sometimes we will see.
+ - NO Starts
+ - Black Start 
+ - Red Start 
+
+That means traffic is landing on diffeent version of the review service.
+
+
+POint-04-# Backend request flow:-
+Suppose user opens/access:-
+ http://istio-ingressgateways-istio-ingress.apps.ocp4.example.com/productpage 
+ https://appName-nsName.apps.ocp4.example.com 
+ https://console-openshift-console.apps.ocp4.example.com 
+ 
+ FLow:-
+ 1-# User request enters through istio ingress gateway 
+ 2-# Request goes to productpage
+ 3-# productpage calls "details"
+ 4-# productpage calls "review"
+ 5-# If selected review version is:-
+    v1 -> returns review test only 
+	v2 -> calls ratings -> Black starts 
+	v3 -> calls ratings -> Red starts 
+
+ 6-# productpage assembles all responses into one page and sends to "Web Browser".
+ 
+
+POint-05-# Where OSSM comes in:-
+  Your app container says:- "I want to call reviews service".
+  But in reality, traffic path become more like this flow:-
+  APP container -> Local Envoy sidecar -> Destination Envoy sidecar -> Destination App.
+
+  Your application thinks it is doing a normal service calls but "Envoy Proxy" is:-
+  - Oberving 
+  - routing 
+  - securing 
+  - collecting metrics 
+  - propagating tracing context.
+
+  
+POint-06-# Control plane vs Data Plane w.r.t Bookinfo application.
+
+In Bookinfo teams:-
+Control plane (Main brain).
+- istiod
+- watches resources 
+- pushes routing/security config 
+
+Data plane (Workers):-
+ - Envoy sidecar on each Bookinfo pod.
+ - Actually handle the traffic.
