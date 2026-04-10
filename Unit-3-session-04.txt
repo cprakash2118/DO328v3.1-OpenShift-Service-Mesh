@@ -1,0 +1,313 @@
+Unit-3# Managing Traffic with OpenShift Service Mesh:-
+1-# Introduction to OpenShift Service Mesh Traffic Management 
+2-# Traffic Routing and Splitting with OpenShift Service Mesh
+3-# Fault Injection with OpenShift Service Mesh
+4-# Resilience with OpenShift Service Mesh 
+5-# Traffic Mirroring with OpenShift Service Mesh
+
+6-# Introduction to the Kubernetes Gateway API 
+
+#### Implementation (OCP/OVE/ODF/OSSM).
+ Application deployed (Containerition & Virtulization workload).
+ - Release new version safely
+ - Avoid downtime 
+ - Handle failure automatically 
+ - Testing of new version without impacting users.
+ 
+Core components understanding:-
+1-) VirtualService (vs) -> Controles routing (who gets traffice)
+2-) DestinationRule (ds) -> define version (v1,v2 subsets)
+3-) Gateway -> External Access
+4-) Envoy proxy -> Executes rules (data plane).
+
+
+You have microservice:-
+- product-service 
+
+Version:-
+v1 -> stable 
+v2 -> New release 
+
+1-# Traffic Routing (Basic implementation):-
+Target:- Route all traffic to v1 
+
+Step-1-# DestinationRule
+$ oc explain ds |less
+$ oc explain ds.spec |less
+$ oc explain ds.spec.host |less
+
+$ oc explain vs |less 
+$ oc explain vs.spec |less 
+
+
+vim destinationRule-file.yaml 
+apiVersion: networking.istio.io/v1  
+kind: DestinationRule
+metadata:
+  name: product-dr 
+spec:
+  host: product-service
+  subsets:
+  - name: v1 
+    labels:
+      version: v1 
+  - name: v2
+    labels:
+      version: v2
+	  
+Step-2-# VirtualService
+
+vim virtualService-file.yaml 
+apiVersion: networking.istio.io/v1  
+kind: VirtualService 
+metadata:
+  name: product-vs 
+spec:
+  hosts:
+  - product-service
+  http:
+  - route:
+    - destination:
+	    host: product-service
+	    subset: v1 
+
+Outcome -> All traffic toward v1 
+
+
+--------
+2-# Traffic splitting (Canary deployment).
+Target - Gradually release v2 (Like prod rollout):-
+
+Step-1-# DestinationRule
+Step-2-# VirtualService
+
+vim virtualService-file.yaml 
+apiVersion: networking.istio.io/v1  
+kind: VirtualService 
+metadata:
+  name: product-vs 
+spec:
+  hosts:
+  - product-service
+  http:                   ###### ------- From here 
+  - route:
+    - destination:
+	    host: product-service
+	    subset: v1 
+	  weight: 90
+    - destination:
+	    host: product-service
+	    subset: v2 
+	  weight: 10
+	
+90% users -> stable (v1)
+10% users -> New version (v2)
+
+--------
+3-# Header-Based Routing (More adv control)
+Target -> Send only internal users to v2
+
+Step-1-# DestinationRule
+Step-2-# VirtualService
+
+vim virtualService-file.yaml 
+apiVersion: networking.istio.io/v1  
+kind: VirtualService 
+metadata:
+  name: product-vs 
+spec:
+  hosts:
+  - product-service
+  http:                   ###### ------- From here 
+  - match:
+    - headers:
+	    user-type:
+		  exact: internal     # Example http://ip/internal 
+    route:
+	- destination:
+	  host: product-service
+	  subset: v2 
+	  
+  - route:
+    - destination:
+	    host: product-service
+		subset: v1 
+		
+Outcome:-
+- internal team -> v2 
+- customers -> v1 
+
+Test new feature internally before public release.
+
+
+--------
+4-# Fault injection (Chaos Testing).
+Target -> Simulate failure (Impt for Prod readiness).
+
+Step-1-# DestinationRule
+Step-2-# VirtualService
+
+vim virtualService-file.yaml 
+apiVersion: networking.istio.io/v1  
+kind: VirtualService 
+metadata:
+  name: product-vs 
+spec:
+  hosts:
+  - product-service
+  http:                   ###### ------- From here 
+  - fault:
+      delay:
+	    percentage: 
+		   value: 50 
+		fixedDelay: 5s 
+    route:
+	- destination:
+	  host: product-service
+	  subset: v1 
+	  
+Result (Outcome):-
+- 50% requests delayed by 5 secounds 
+
+Why like this ?
+- Test timeout handling 
+- Validate resilience 
+- Required for prod readiness 
+
+
+--------
+5-# Resilience (Retry, Timeout, Circuit Breaker).
+Target -> Prevent cascading failure.
+
+Retry + timeout###
+
+Step-1-# DestinationRule
+Step-2-# VirtualService
+
+vim virtualService-file.yaml 
+apiVersion: networking.istio.io/v1  
+kind: VirtualService 
+metadata:
+  name: product-vs 
+spec:
+  hosts:
+  - product-service
+  http:                   ###### ------- From here 
+  - route 
+    - destination:
+	    host: product-service
+	retries:
+	  attempts: 3 
+	  perTryTimeout: 2s   ### A time-out value for each retry attempt. 
+	timeout: 5s           ### Configures a 5-second timeout for all requests to the api-service.
+	
+Result:-
+ - Retry failed calls automatically.
+ - Avoid user-facing errors.
+ 
+####- Circuit Breaker (DestinationRule)
+
+Step-1-# DestinationRule
+$ oc explain ds |less
+$ oc explain ds.spec |less
+$ oc explain ds.spec.host |less
+
+$ oc explain vs |less 
+$ oc explain vs.spec |less 
+
+
+vim destinationRule-file.yaml 
+apiVersion: networking.istio.io/v1  
+kind: DestinationRule
+metadata:
+  name: product-dr 
+spec:
+  host: product-service
+  trafficPolicy:
+    connectionPool:
+     tcp:                       ## TCP connection pool settings.
+       maxConnections: 100      ## Maximum number of simultaneous TCP connections per replica.
+       connectTimeout: 30ms     ## Maximum time to establish a TCP connection.
+     http:                           ## HTTP connection pool settings.
+       http1MaxPendingRequests: 50  ## Maximum number of HTTP requests pending per replica.
+       maxRequestsPerConnection: 1  ## Maximum number of requests permitted on a single connection
+	   
+	   
+spec:
+  host: product-service
+  trafficPolicy:
+   outlierDetection:
+     consecutive5xxErrors: 5    ### Number of consecutive 5xx errors before evicting the replica.
+     interval: 10s              ### Time interval between checking error counts.
+     baseEjectionTime: 30s      ### Minimum duration of replica ejection time.
+     maxEjectionPercent: 50     ### Maximum percentage of evicted replicas for a service at any time.
+	 
+	 
+Outcome:-
+ - Bad pods automatically isolated 
+ - System stays table 
+
+Critical for:-
+ - DB failure
+ - External API failure
+ - VM migration backed stability  
+ 
+
+--------
+6-# Traffic Mirroring:-
+  Prod is on v1 (current and stable version)
+  Test v2 (new version) without impacting users.
+  
+Step-1-# DestinationRule
+Step-2-# VirtualService
+
+vim virtualService-file.yaml 
+apiVersion: networking.istio.io/v1  
+kind: VirtualService 
+metadata:
+  name: product-vs 
+spec:
+  hosts:
+  - product-service
+  http:                   ###### ------- From here 
+  - route:
+    - destination:
+        host: product-service
+        subset: v1 
+    - mirror:
+        host: product-service
+        subset: v2 
+
+Result:-
+ - User -> only see v1 response 
+   v2 gets same traffic silently 
+
+ - Test new  backend logice safely
+ - compare performance 
+
+
+--------
+*****************************************
+7-# Gateway API (External Access)
+ - Pending 
+*****************************************
+
+##### End-To-End Flow & summary  (Imp point).
+User -> Gateway (gw) -> VirtualService (vs) -> DestinationRule (dr) -> Envoy -> pod 
+
+# Control Plane (istiod)
+  - Configure rules 
+# Data Plane (Envoy)
+  - Executes rules
+
+# Explaination:-
+Feature                      Why                               Used 
+Routing                 COntrol Traffic                     Version Switching 
+Splitting               Safe rollout                        Canary Deployment 
+Headers                 Smart routing                       Internal testing 
+Fault Injection         Chaos Testing                       Resilience validation 
+Retry/Timeout           Stability                           Prevent Failure 
+Ciccuit Breaker         Isolation                           Avoid crash 
+Mirroring               Safe testing                        Shodow traffic
+	
+	
