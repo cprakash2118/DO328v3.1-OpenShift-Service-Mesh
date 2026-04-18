@@ -1,0 +1,122 @@
+Unit-3# Managing Traffic with OpenShift Service Mesh:-
+1-# Introduction to OpenShift Service Mesh Traffic Management
+2-# Traffic Routing and Splitting with OpenShift Service Mesh
+
+Networking - OVNKubernetes (default CNI) ; Multus CNI ; Istio (Adv networking).
+
+Application on OCP cluster - 
+- Workload -> Deployment -> rs -> POD (w.r.t Port open - 8080/8443)
+- Network  -> Service (Default is ClusterIP,LoadBanlancer,NodePort) -> route (inbuilt w.r.t OpenShift).
+  Route enabled with TLS default 
+  http  - 80
+  https - 443 (edge,passthrough,reencrypt)
+
+Application on other certifed k8s cluster (Enterprise SOlution) - Different (ingress & ingressController).
+
+Core components understanding:-
+1-) VirtualService (vs) -> Controles routing (who gets traffice)
+2-) DestinationRule (ds) -> define version (v1,v2 subsets)
+3-) Gateway -> External Access
+4-) Envoy proxy -> Executes rules (data plane).
+
+GE-2-# Traffic Routing and Splitting with OpenShift Service Mesh
+Route traffic to services in Red Hat OpenShift Service Mesh (OSSM) based on weighted routing, HTTP header, and URI path matching.
+
+When you do lab setup below points will be done.
+
+Point-01-) What we are going to do with this GE:-
+- Created namespace (meshtraffic-routing)
+- Added this namespace to service mesh 
+- Deploy "ratings" & "reviews" (deployment -> rs -> pod ; services)
+- creates basic gateway(gw) and virtualService (vs) for ingress.
+- Setup "traffic_gen.py" script so that you can generate test traffic easily.
+
+
+Point-02-) Business behind this LAB.
+"reviews" service has multiple versions:-
+ - v1 -> reponse shows "No starts"
+ - v2 -> reponse shows "Black starts"
+ - v3 -> reponse shows "Red starts"
+
+  These visible responses are used as an easy indicator of which subset received the request.
+  gw -> vs -> dr then "vs" will route to pod.
+
+Point-03-) End-to-End flow:-
+ Client -> Istio ingress gateway -> VirtualService match rukes -> DestinationRule subset mapping -> correct reviews pod version   
+
+   - VirtualService decides where traffic should go 
+   - DestinationRule defines what v1,v2,v3 actually refered 
+   - Envoy sidecars enforce the rules at runtime.   
+   FYI- Without "DestinationRule", subset-based routing cannot work correctly.
+   
+
+Point-04-) Let's implement.
+- lab start - setup all required env.
+- Now let's verify all points which we have discussed above.
+- ratings & reviews application deployed 
+
+  $ oc get pods,rs,deployment (list all workload only)
+  $ oc get service 
+  $ oc get route  (NO route as of now).
+  
+  $ oc get gw
+  $ oc get vs 
+  $ oc get dr 
+  
+- craeted dr rules (w.r.t v1,v2,v3 subsets)
+
+This is the tranlation layer between routing policy and k8s PODs.
+ subset v1 
+ subset v2 
+ subset v3 
+ 
+- Istio needs to know which pods belongs to each subset. That mapping somes from VirtualService" ressource.
+- "vs" send traffic to specific subset v3/v2/v1
+
+Implemented weighted routing:-
+- 80% to v1 
+- 15% to v2 
+- 5%  to v3 
+
+Why weight routing exist?
+- release phase 
+- beta audiences 
+- canary %tage 
+- controlled rollout logic 
+
+
+Implemented header-based routing:- 
+x-user-type: internal -> v3 -> red stars 
+x-user-type: beta -> v2 -> Black stars
+everyone else -> v1 -> No stars
+
+
+Implement URI path-based routing:-
+
+path rules.
+/api/v3/reviews/* -> v3 -> Red stars
+/api/v2/reviews/* -> v2 -> Black stars
+/reviews/*  v1  No stars
+
+Most important part here is URI rewrite:-
+Refer unit 1-GE bookshow, Unit3-GE-1st BookShow applications.
+
+Backend "reviews" service only accepts "/reviews" endpoints, not versioned paths like "/api/v3/reviews", so OSSM rewrite the URI before forwarding.
+
+Example:-
+ /api/v2/reviews/1 -> /reviews/1 
+
+Why rewrite is necessry?
+If you route "/api/v2/reviews/1" directly to backend that only know "/reviews/1", backend return 404 error.
+
+
+Progressive canary deployment:-
+Canary rollout by updaing weight in phases.
+- start with 5% to canary 
+- then increase to 25% 
+- then increase to 50% 
+
+
+ 
+ 
+
